@@ -1,0 +1,33 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pytest
+      - name: Build executable
+        run: uv run pyinstaller --onefile --name rojo-share src/rojo_share/cli.py
+      - name: Smoke test and archive
+        run: |
+          dist/rojo-share --help
+          cd dist
+          zip rojo-share-${GITHUB_REF_NAME#v}-linux-x86_64.zip rojo-share
+          sha256sum rojo-share-${GITHUB_REF_NAME#v}-linux-x86_64.zip > SHA256SUMS
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/*.zip dist/SHA256SUMS --generate-notes
