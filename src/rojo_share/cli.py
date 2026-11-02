@@ -15,13 +15,6 @@ SECONDS_PER_UNIT = {"s": 1, "m": 60, "h": 3600}
 app = typer.Typer(no_args_is_help=True)
 
 
-def duration_seconds(value: str) -> float:
-    match = DURATION.fullmatch(value)
-    if match is None or int(match.group(1)) == 0:
-        raise typer.BadParameter("use a positive duration such as 30s, 5m, or 1h")
-    return int(match.group(1)) * SECONDS_PER_UNIT[match.group(2)]
-
-
 @app.callback()
 def main() -> None:
     """Share a Rojo development session through a temporary tunnel."""
@@ -40,7 +33,12 @@ def serve_command(
     ],
     rojo_port: Annotated[
         int,
-        typer.Option(min=1, max=65535, help="Local port for the Rojo server."),
+        typer.Option(
+            min=1,
+            max=65535,
+            metavar="PORT",
+            help="Local port for the Rojo server.",
+        ),
     ] = 34872,
     duration: Annotated[
         str,
@@ -61,6 +59,13 @@ def serve_command(
     except (SessionError, OSError) as error:
         typer.echo(f"rojo-share: {error}", err=True)
         raise typer.Exit(1) from error
+
+
+def duration_seconds(value: str) -> int:
+    match = DURATION.fullmatch(value)
+    if match is None or int(match.group(1)) == 0:
+        raise typer.BadParameter("use a positive duration such as 30s, 5m, or 1h")
+    return int(match.group(1)) * SECONDS_PER_UNIT[match.group(2)]
 
 
 if __name__ == "__main__":
