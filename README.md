@@ -10,6 +10,8 @@ Run the command from a project with its Rokit-pinned `rojo` on `PATH`. Install `
 
 A new tunnel hostname takes a few seconds to appear in DNS. The command checks the public record through Cloudflare's resolver over HTTPS first, so the local resolver does not cache a "not found" answer, then waits up to two minutes for the tunnel to reach Rojo and prints progress while waiting.
 
+If `cloudflared` exits with `quick tunnel provisioning failed with status 429`, Cloudflare is limiting new tunnels for your network. Wait a few minutes and run the command again. The `429` in Cloudflare's documentation is a different one: it is returned to traffic on a tunnel that already has 200 requests in flight.
+
 `--duration` is the maximum session lifetime; `--heartbeat` is the WebSocket ping period. Both accept positive whole numbers followed by `s`, `m`, or `h`. The defaults are `1h` and `30s`. Press Ctrl-C to stop all processes. A restarted Quick Tunnel gets a new URL.
 
 The public URL exposes Rojo's development API while the command runs. `/api/open` is blocked because Rojo would mistake the local proxy for a local user. This does not authenticate the remaining API. Stop the session when the work is done.
