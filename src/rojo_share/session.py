@@ -57,6 +57,11 @@ async def _read_output(
             print(f"[{name}] {line}", flush=True)
     if url_found is not None and not url_found.done():
         detail = f": {recent}" if recent else ""
+        if "status 429" in detail:
+            detail += (
+                "; Cloudflare is rate limiting new tunnels for this network"
+                " (error 1015), so wait up to an hour before retrying"
+            )
         url_found.set_exception(
             SessionError(f"{name} exited before reporting a URL{detail}")
         )

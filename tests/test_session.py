@@ -129,5 +129,5 @@ async def test_cloudflared_last_line_reaches_the_error():
 
     await session._read_output(process, "cloudflared", url_found)
 
-    with pytest.raises(session.SessionError, match="status 429"):
+    with pytest.raises(session.SessionError, match="status 429.*error 1015"):
         url_found.result()

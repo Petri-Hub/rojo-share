@@ -10,7 +10,7 @@ Run the command from a project with its Rokit-pinned `rojo` on `PATH`. Install `
 
 A new tunnel hostname takes a few seconds to appear in DNS. The command checks the public record through Cloudflare's resolver over HTTPS first, so the local resolver does not cache a "not found" answer, then waits up to two minutes for the tunnel to reach Rojo and prints progress while waiting.
 
-If `cloudflared` exits with `quick tunnel provisioning failed with status 429`, Cloudflare is limiting new tunnels for your network. Wait a few minutes and run the command again. The `429` in Cloudflare's documentation is a different one: it is returned to traffic on a tunnel that already has 200 requests in flight.
+If `cloudflared` exits with `quick tunnel provisioning failed with status 429`, Cloudflare is rate limiting new tunnels for your network ([error 1015](https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-1xxx-errors/error-1015/)). The provisioning endpoint reports the wait in a `Retry-After` header, 40 minutes when it was last measured, but `cloudflared` discards it. Wait it out and avoid retrying: repeated attempts can extend the block. This is not the `429` in the Quick Tunnels documentation, which is returned to traffic on a tunnel that already has 200 requests in flight.
 
 `--duration` is the maximum session lifetime; `--heartbeat` is the WebSocket ping period. Both accept positive whole numbers followed by `s`, `m`, or `h`. The defaults are `1h` and `30s`. Press Ctrl-C to stop all processes. A restarted Quick Tunnel gets a new URL.
 
