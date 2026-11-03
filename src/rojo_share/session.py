@@ -3,6 +3,7 @@
 import asyncio
 import os
 import re
+import shutil
 import signal
 from contextlib import suppress
 from pathlib import Path
@@ -14,7 +15,8 @@ from rojo_share.proxy import create_app
 
 TUNNEL_URL = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.com\b")
 STARTUP_SECONDS = 45
-HEALTH_SECONDS = 20
+READY_SECONDS = 120
+PROGRESS_SECONDS = 10
 STOP_SECONDS = 5
 
 
@@ -23,6 +25,8 @@ class SessionError(Exception):
 
 
 async def _start_process(*command: str, cwd: Path) -> asyncio.subprocess.Process:
+    if shutil.which(command[0]) is None:
+        raise SessionError(f"{command[0]} is not on PATH; install it or add it to PATH")
     return await asyncio.create_subprocess_exec(
         *command,
         cwd=cwd,
@@ -64,8 +68,12 @@ async def _stop_process(process: asyncio.subprocess.Process | None) -> None:
 
 
 async def _wait_for_rojo(url: str, rojo: asyncio.subprocess.Process) -> None:
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + READY_SECONDS
+    next_report = PROGRESS_SECONDS
+    last_error = "no response yet"
     async with ClientSession(timeout=ClientTimeout(total=5)) as client:
-        for _ in range(HEALTH_SECONDS * 2):
+        while loop.time() < deadline:
             if rojo.returncode is not None:
                 raise SessionError(f"Rojo exited with status {rojo.returncode}")
             try:
@@ -76,10 +84,20 @@ async def _wait_for_rojo(url: str, rojo: asyncio.subprocess.Process) -> None:
                         == "application/msgpack"
                     ):
                         return
-            except (OSError, TimeoutError):
-                pass
+                    last_error = f"Rojo answered HTTP {response.status}"
+            except (OSError, TimeoutError) as error:
+                last_error = str(error) or type(error).__name__
+            waited = READY_SECONDS - (deadline - loop.time())
+            if waited >= next_report:
+                print(
+                    f"Still waiting for the tunnel ({waited:.0f}s): {last_error}",
+                    flush=True,
+                )
+                next_report += PROGRESS_SECONDS
             await asyncio.sleep(0.5)
-    raise SessionError("Rojo did not become reachable through the tunnel")
+    raise SessionError(
+        f"the tunnel did not reach Rojo within {READY_SECONDS}s: {last_error}"
+    )
 
 
 async def serve(
@@ -112,8 +130,11 @@ async def serve(
         try:
             url = await asyncio.wait_for(url_found, STARTUP_SECONDS)
         except TimeoutError as error:
-            raise SessionError("cloudflared did not report a URL") from error
+            raise SessionError(
+                f"cloudflared did not report a URL within {STARTUP_SECONDS}s"
+            ) from error
 
+        print(f"Tunnel URL: {url}", flush=True)
         hostname = urlsplit(url).hostname
         rojo = await _start_process(
             "rojo",

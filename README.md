@@ -8,6 +8,8 @@ rojo-share serve default.project.json --rojo-port 34872 --duration 1h --heartbea
 
 Run the command from a project with its Rokit-pinned `rojo` on `PATH`. Install `cloudflared` on `PATH` too. Each simultaneous session needs a different `--rojo-port`. The proxy chooses its own local port. The Studio plugin uses the printed HTTPS host and port `443`.
 
+A new tunnel can take from a few seconds to about a minute before its hostname resolves, so the command waits up to two minutes for the tunnel to reach Rojo and prints progress while waiting.
+
 `--duration` is the maximum session lifetime; `--heartbeat` is the WebSocket ping period. Both accept positive whole numbers followed by `s`, `m`, or `h`. The defaults are `1h` and `30s`. Press Ctrl-C to stop all processes. A restarted Quick Tunnel gets a new URL.
 
 The public URL exposes Rojo's development API while the command runs. `/api/open` is blocked because Rojo would mistake the local proxy for a local user. This does not authenticate the remaining API. Stop the session when the work is done.

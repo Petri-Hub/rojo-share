@@ -38,3 +38,19 @@ async def test_duration_stops_both_children(monkeypatch, tmp_path):
     await session.serve(project, 34872, 0.05, 30)
     assert len(children) == 2
     assert all(child.returncode is not None for child in children)
+
+
+@pytest.mark.asyncio
+async def test_missing_binary_names_the_path_requirement(monkeypatch, tmp_path):
+    monkeypatch.setattr(session.shutil, "which", lambda name: None)
+
+    with pytest.raises(session.SessionError, match="cloudflared is not on PATH"):
+        await session._start_process("cloudflared", "tunnel", cwd=tmp_path)
+
+
+@pytest.mark.asyncio
+async def test_unreachable_tunnel_reports_the_timeout(monkeypatch):
+    monkeypatch.setattr(session, "READY_SECONDS", 0)
+
+    with pytest.raises(session.SessionError, match="did not reach Rojo within 0s"):
+        await session._wait_for_rojo("https://example.trycloudflare.com", object())
