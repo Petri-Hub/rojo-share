@@ -14,7 +14,9 @@ from aiohttp import ClientSession, ClientTimeout, web
 from rojo_share.proxy import create_app
 
 TUNNEL_URL = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.com\b")
+DOH_URL = "https://1.1.1.1/dns-query"
 STARTUP_SECONDS = 45
+DNS_SECONDS = 20
 READY_SECONDS = 120
 PROGRESS_SECONDS = 10
 STOP_SECONDS = 5
@@ -65,6 +67,39 @@ async def _stop_process(process: asyncio.subprocess.Process | None) -> None:
         with suppress(ProcessLookupError):
             os.killpg(process.pid, signal.SIGKILL)
         await process.wait()
+
+
+async def _wait_for_public_dns(hostname: str) -> bool | None:
+    """Wait until the hostname has an A record, without using the local resolver.
+
+    A brand-new quick tunnel hostname is missing from DNS for a few seconds.
+    Asking the local resolver during that window caches the failure for about
+    a minute, and that negative entry then blocks this health check and Roblox
+    Studio alike. Cloudflare's resolver is asked over HTTPS instead, which
+    leaves the local cache clean so Studio resolves as soon as the record
+    exists.
+
+    Returns True once the record exists, False if it never showed up in time,
+    and None when the public resolver could not be reached.
+    """
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + DNS_SECONDS
+    async with ClientSession(timeout=ClientTimeout(total=3)) as client:
+        while loop.time() < deadline:
+            try:
+                async with client.get(
+                    DOH_URL,
+                    params={"name": hostname, "type": "A"},
+                    headers={"accept": "application/dns-json"},
+                ) as response:
+                    if response.status == 200:
+                        answer = await response.json(content_type=None)
+                        if answer.get("Answer"):
+                            return True
+            except (OSError, TimeoutError, ValueError):
+                return None
+            await asyncio.sleep(0.5)
+    return False
 
 
 async def _wait_for_rojo(url: str, rojo: asyncio.subprocess.Process) -> None:
@@ -149,6 +184,12 @@ async def serve(
             cwd=project.parent,
         )
         readers.append(asyncio.create_task(_read_output(rojo, "rojo")))
+        published = await _wait_for_public_dns(hostname)
+        if published is False:
+            print(
+                f"The hostname was not in DNS after {DNS_SECONDS}s; checking anyway",
+                flush=True,
+            )
         await _wait_for_rojo(url, rojo)
         print(f"Studio URL: {url} (port 443)", flush=True)
         print(f"Session expires in {duration:g} seconds", flush=True)
