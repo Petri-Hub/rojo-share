@@ -116,3 +116,18 @@ async def test_public_dns_gives_up_after_its_budget(monkeypatch):
     monkeypatch.setattr(session, "DNS_SECONDS", 0)
 
     assert await session._wait_for_public_dns("example.trycloudflare.com") is False
+
+
+@pytest.mark.asyncio
+async def test_cloudflared_last_line_reaches_the_error():
+    stdout = asyncio.StreamReader()
+    stdout.feed_data(b"INF Requesting new quick Tunnel\n")
+    stdout.feed_data(b"quick tunnel provisioning failed with status 429\n")
+    stdout.feed_eof()
+    process = type("Process", (), {"stdout": stdout})()
+    url_found = asyncio.get_running_loop().create_future()
+
+    await session._read_output(process, "cloudflared", url_found)
+
+    with pytest.raises(session.SessionError, match="status 429"):
+        url_found.result()

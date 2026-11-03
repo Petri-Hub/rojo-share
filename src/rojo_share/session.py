@@ -44,8 +44,11 @@ async def _read_output(
     url_found: asyncio.Future[str] | None = None,
 ) -> None:
     assert process.stdout is not None
+    recent = ""
     async for raw_line in process.stdout:
         line = raw_line.decode(errors="replace").rstrip()
+        if line:
+            recent = line
         if url_found is not None and not url_found.done():
             match = TUNNEL_URL.search(line)
             if match:
@@ -53,7 +56,10 @@ async def _read_output(
         if "ERR" in line or "ERROR" in line:
             print(f"[{name}] {line}", flush=True)
     if url_found is not None and not url_found.done():
-        url_found.set_exception(SessionError(f"{name} exited before reporting a URL"))
+        detail = f": {recent}" if recent else ""
+        url_found.set_exception(
+            SessionError(f"{name} exited before reporting a URL{detail}")
+        )
 
 
 async def _stop_process(process: asyncio.subprocess.Process | None) -> None:
